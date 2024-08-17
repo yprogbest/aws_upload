@@ -3,6 +3,19 @@ from datetime import datetime, timedelta
 import re
 
 
+#CloudWatchのログストリームから指定した値を取得
+def get_cloudwatch_value(input_txt, log_event):
+    right_part = log_event['message'].split(input_txt, 1)[-1] #input_txtより右の文字を取得
+    # 〜正規表現〜
+    # [-+]? は、オプションの符号（+ または -）にマッチします。
+    # \d* は0個以上の数字にマッチします（整数部分）。
+    # \.? はオプションの小数点にマッチします。
+    # \d+ は1つ以上の数字にマッチします（小数部分）。
+    # (?:...) は非キャプチャグループを作成します。
+    # [eE][-+]?\d+ は指数部分（e または E の後にオプションの符号と数字）にマッチします。
+    message_value = float(re.findall(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?', right_part)[0])
+    return message_value
+
 
 if __name__ == "__main__":
     #key用ファイルの読み込み
@@ -49,42 +62,30 @@ if __name__ == "__main__":
     # 「総回数」と「1時間平均」の文字の有無を判定するための変数を用意
     total_value_text = "総回数"
     avg_value_text = "1時間平均"
+
     #　「総回数」と「1時間平均」の合計値用
     total_value_sum = 0
     avg_value_sum = 0
+
     # フィルタリングされたログストリームの表示
     for log_stream in filtered_log_streams:
         print(f'\nMessage in log stream: {log_stream}')
-
         # ログストリーム内のメッセージを取得
         events_response = client.get_log_events(
             logGroupName = log_group_name,
             logStreamName = log_stream,
         )
-
-        #各イベントのメッセージを表示
+        #各イベントのメッセージを取得
         for event in events_response['events']:
             #総回数
             if total_value_text in event['message']:
-                right_part_total = event['message'].split(total_value_text, 1)[-1]
-                
-                # 〜正規表現〜
-                # [-+]? は、オプションの符号（+ または -）にマッチします。
-                # \d* は0個以上の数字にマッチします（整数部分）。
-                # \.? はオプションの小数点にマッチします。
-                # \d+ は1つ以上の数字にマッチします（小数部分）。
-                # (?:...) は非キャプチャグループを作成します。
-                # [eE][-+]?\d+ は指数部分（e または E の後にオプションの符号と数字）にマッチします。
-                total_value = float(re.findall(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?', right_part_total)[0])
-                # print(f'total_value : {total_value}')
+                total_value = get_cloudwatch_value(total_value_text, event)
                 total_value_sum += total_value
             #1時間平均
             if avg_value_text in event['message']:
-                right_part_avg = event['message'].split(avg_value_text, 1)[-1]
-                avg_value = float(re.findall(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?', right_part_avg)[0])
-                # print(f'avg_value : {avg_value}')
+                avg_value = get_cloudwatch_value(avg_value_text, event)
                 avg_value_sum += avg_value
-    
-    avg_value_sum = avg_value_sum / 2 #前半と後半のデータの平均値
+
+    avg_value_sum = avg_value_sum / 2 #1つ目のストリームと2つ目のストリームのデータの平均値
     print(f'total_value_sum : {total_value_sum}')
-    print(f'avg_value_sum/2 : {avg_value_sum/2}')
+    print(f'avg_value_sum : {avg_value_sum}')
