@@ -21,7 +21,8 @@ def translate_deepl(input_text):
         "auth_key": API_KEY,
         "text": input_text,
         "source_lang": 'EN',
-        "target_lang": 'JA'
+        "target_lang": 'JA',
+        "formality": 'more'
     }
 
     request = requests.post("https://api-free.deepl.com/v2/translate", data=params)
@@ -47,12 +48,12 @@ def calc_data():
     data['scaled_vibration'] = scaler.fit_transform(data['vibration'].values.reshape(-1,1))
 
     #グラフの保存
-    fig_x = time
-    fig_y = data['scaled_vibration']
-    plt.plot(fig_x, fig_y)
-    plt.xlabel("time")
-    plt.ylabel("scaled_vibration")
-    plt.savefig('figure.png')
+    # fig_x = time
+    # fig_y = data['scaled_vibration']
+    # plt.plot(fig_x, fig_y)
+    # plt.xlabel("time")
+    # plt.ylabel("scaled_vibration")
+    # plt.savefig('figure.png')
 
     #特徴量の計算
     data['mean'] = data['scaled_vibration'].rolling(window=20).mean() #rolling(window=20).mean(): 20個単位で、平均を算出する
