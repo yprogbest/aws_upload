@@ -5,6 +5,8 @@ import requests
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler #標準化（平均0、標準偏差1）を行うためのライブラリ
+import matplotlib.pyplot as plt
+
 
 # キー用のファイルの読み込み
 load_dotenv('gpt_key.env')
@@ -43,6 +45,14 @@ def calc_data():
     #特徴量のスケーリング
     scaler = StandardScaler()
     data['scaled_vibration'] = scaler.fit_transform(data['vibration'].values.reshape(-1,1))
+
+    #グラフの保存
+    fig_x = time
+    fig_y = data['scaled_vibration']
+    plt.plot(fig_x, fig_y)
+    plt.xlabel("time")
+    plt.ylabel("scaled_vibration")
+    plt.savefig('figure.png')
 
     #特徴量の計算
     data['mean'] = data['scaled_vibration'].rolling(window=20).mean() #rolling(window=20).mean(): 20個単位で、平均を算出する
