@@ -22,8 +22,6 @@ def get_cloudwatch_value(input_txt, log_event):
 
 if __name__ == "__main__":
     # ID ※外部から取得
-    id_name = "ma_id"
-    id_value = "1234-5678"
     first_target_date = datetime(2024, 8, 24, 12, 5) #フィルタリングする日付を指定(1つ目) #※外部から取得する
     second_target_date = first_target_date + timedelta(minutes=30) #フィルタリングする日付を指定(2つ目)
 
@@ -31,6 +29,8 @@ if __name__ == "__main__":
 
     # #key用ファイルの読み込み
     load_dotenv('key.env')
+    ma_id_name = os.environ['MA_ID_NAME']
+    ma_id_value = os.environ['MA_ID_VALUE']
     aws_access_key_id = os.environ['AWS_ACCESS_KEY_ID']
     aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
     region_name = os.environ['REGION_NAME']
@@ -62,17 +62,18 @@ if __name__ == "__main__":
 
 
     # IDのパターン（正規表現） CloudWatchからIDを抽出するために必要
-    id_value_pattern = r"'([a-zA-Z0-9\-]+)'"
+    ma_id_value_pattern = r"'([a-zA-Z0-9\-]+)'"
 
     #「総回数」と「1時間平均」の文字の有無を判定するための変数を用意
     total_value_text = "総回数"
     avg_value_text = "1時間平均"
 
-    #　「総回数」と「1時間平均」の合計値用
+    #　「総回数」と「1時間平均」の合計値の初期値
     total_value_sum = 0
     avg_value_sum = 0
 
-    id_match_flag = False
+    id_match_flag = False #IDのマッチ可否のフラグ
+    value_cnt = 0 #対象のストリーム数の初期値
     # フィルタリングされたログストリームの表示
     for log_stream in filtered_log_streams:
         # print(f'\nMessage in log stream: {log_stream}')
@@ -84,12 +85,14 @@ if __name__ == "__main__":
         #各イベントのメッセージを取得
         for event in events_response['events']:
             message = event['message']
-            if id_name in message:
-                id_match = re.search(id_value_pattern, message) #正規表現でma_idの値を取得
-                ma_id = id_match.group(1) #1番目にマッチした部分を返す
-                if ma_id == id_value:
+            if ma_id_name in message:
+                id_match = re.search(ma_id_value_pattern, message) #正規表現でma_idの値を取得
+                ma_id = id_match.group(1) #IDの取得
+                if ma_id == ma_id_value:
                     id_match_flag = True
-
+                else:
+                    id_match_flag = False
+            # 総回数と1時間平均を取得し、合計を計算する
             if id_match_flag == True:
                 #総回数
                 if total_value_text in message:
@@ -97,11 +100,9 @@ if __name__ == "__main__":
                     total_value_sum += total_value
                 #1時間平均
                 if avg_value_text in message:
+                    value_cnt += 1
                     avg_value = get_cloudwatch_value(avg_value_text, event)
                     avg_value_sum += avg_value
-
-    print(id_match_flag)
-    if id_match_flag == True:
-        avg_value_sum = avg_value_sum / 2 #1つ目のストリームと2つ目のストリームのデータの平均値
-        print(f'total_value_sum : {total_value_sum}')
-        print(f'avg_value_sum : {avg_value_sum}')
+    avg_value_sum = avg_value_sum / value_cnt #1時間平均の平均値を求める
+    print(f'total_value_sum : {total_value_sum}')
+    print(f'avg_value_sum : {avg_value_sum}')
