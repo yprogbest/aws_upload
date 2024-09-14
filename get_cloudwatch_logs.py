@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 def get_id_value(input_txt, log_event):
     right_part = log_event['message'].split(input_txt, 1)[-1] #input_txtより右の文字を取得
-    id_value = re.findall(r'([a-zA-Z0-9\-]+)', right_part)[0]
+    id_value = re.findall(r'([a-zA-Z0-9\-]+)', right_part)[0] #a-z, A-Z, 0-9, -のうち1回以上続く値を探す（例：abc, 123, 123-456）
     return id_value
 
 
