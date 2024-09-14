@@ -6,6 +6,12 @@ import os
 from dotenv import load_dotenv
 
 
+def get_id_value(input_txt, log_event):
+    right_part = log_event['message'].split(input_txt, 1)[-1] #input_txtより右の文字を取得
+    id_value = re.findall(r'([a-zA-Z0-9\-]+)', right_part)[0]
+    return id_value
+
+
 #CloudWatchのログストリームから指定した値を取得
 def get_cloudwatch_value(input_txt, log_event):
     right_part = log_event['message'].split(input_txt, 1)[-1] #input_txtより右の文字を取得
@@ -25,8 +31,6 @@ if __name__ == "__main__":
     first_target_date = datetime(2024, 8, 24, 12, 5) #フィルタリングする日付を指定(1つ目) #※外部から取得する
     second_target_date = first_target_date + timedelta(minutes=30) #フィルタリングする日付を指定(2つ目)
 
-
-
     # #key用ファイルの読み込み
     load_dotenv('key.env')
     ma_id_name = os.environ['MA_ID_NAME']
@@ -44,10 +48,14 @@ if __name__ == "__main__":
     # ログストリームのリストを取得
     response = client.describe_log_streams(
         logGroupName = log_group_path,
-        orderBy = 'LastEventTime', # 最後のイベント時間でソート
-        descending = True # 新しい順に並べる
+        orderBy = 'LastEventTime', #最後のイベント時間でソート
+        descending = True #新しい順に並べる
     )
 
+    """
+    1週間分のストリームを取得する場合、ここにfor文で1週間文繰り返せばよいのでは？
+    """
+    
     # 指定日時に一致するログストリームをフィルタリング
     filtered_log_streams = []
     for stream in response['logStreams']:
@@ -61,8 +69,6 @@ if __name__ == "__main__":
             filtered_log_streams.append(stream['logStreamName'])
 
 
-    # IDのパターン（正規表現） CloudWatchからIDを抽出するために必要
-    ma_id_value_pattern = r"'([a-zA-Z0-9\-]+)'"
 
     #「総回数」と「1時間平均」の文字の有無を判定するための変数を用意
     total_value_text = "総回数"
@@ -72,22 +78,27 @@ if __name__ == "__main__":
     total_value_sum = 0
     avg_value_sum = 0
 
+    #「総回数」と「1時間平均」の値のカウントの初期値
+    total_cnt = 0
+    avg_cnt = 0
+
     id_match_flag = False #IDのマッチ可否のフラグ
-    value_cnt = 0 #対象のストリーム数の初期値
+
+    output_list = []
     # フィルタリングされたログストリームの表示
     for log_stream in filtered_log_streams:
-        # print(f'\nMessage in log stream: {log_stream}')
         # ログストリーム内のメッセージを取得
         events_response = client.get_log_events(
             logGroupName = log_group_path,
             logStreamName = log_stream,
+            startFromHead = True #一番古いログから取得する
         )
         #各イベントのメッセージを取得
         for event in events_response['events']:
             message = event['message']
             if ma_id_name in message:
-                id_match = re.search(ma_id_value_pattern, message) #正規表現でma_idの値を取得
-                ma_id = id_match.group(1) #IDの取得
+                ma_id = get_id_value(ma_id_name, event) #CloudWatchからIDを取得する
+                print(f'ma_id: {ma_id}')
                 if ma_id == ma_id_value:
                     id_match_flag = True
                 else:
@@ -96,13 +107,21 @@ if __name__ == "__main__":
             if id_match_flag == True:
                 #総回数
                 if total_value_text in message:
+                    total_cnt += 1
                     total_value = get_cloudwatch_value(total_value_text, event)
                     total_value_sum += total_value
                 #1時間平均
                 if avg_value_text in message:
-                    value_cnt += 1
+                    avg_cnt += 1
                     avg_value = get_cloudwatch_value(avg_value_text, event)
                     avg_value_sum += avg_value
-    avg_value_sum = avg_value_sum / value_cnt #1時間平均の平均値を求める
-    print(f'total_value_sum : {total_value_sum}')
-    print(f'avg_value_sum : {avg_value_sum}')
+    if avg_cnt > 0:
+        avg_value_sum = avg_value_sum / avg_cnt #1時間平均の平均値を求める
+
+    value_cnt = 2 #ログストリーム数（2つのログストリーム）
+    if (total_cnt == value_cnt) and (avg_cnt == value_cnt):
+        output_list.append(total_value_sum)
+        output_list.append(avg_value_sum)
+        print(f'output_list: {output_list}')
+    else:
+        print("データが不足しています。")
